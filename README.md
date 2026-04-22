@@ -1,3 +1,7 @@
+# NoteManager
+
+Учебный full-stack проект для работы с заметками.
+
 В репозитории есть:
 
 - клиентская часть: `NoteManager.html`
@@ -38,10 +42,39 @@ http://localhost:3000/
 
 ## Таблицы базы данных
 
-Таблицы вынесены в отдельные SQL-файлы, чтобы их было видно в репозитории без поиска по общей схеме:
+В проекте используются 2 основные таблицы базы данных. Связь между ними:
+
+```text
+users (1) ---- (N) notes
+```
+
+Таблица `users`
+
+| Поле | Тип | Назначение | Ограничения |
+| --- | --- | --- | --- |
+| id | INTEGER / SERIAL | Уникальный идентификатор пользователя | PK, NOT NULL |
+| email | VARCHAR(255) | Электронная почта пользователя | UNIQUE, NOT NULL |
+| password_hash | VARCHAR(255) | Хэш пароля | NOT NULL |
+| created_at | TIMESTAMP | Дата создания записи | DEFAULT NOW() |
+| updated_at | TIMESTAMP | Дата последнего изменения | DEFAULT NOW() |
+
+Таблица `notes`
+
+| Поле | Тип | Назначение | Ограничения |
+| --- | --- | --- | --- |
+| id | INTEGER / SERIAL | Уникальный идентификатор заметки | PK, NOT NULL |
+| user_id | INTEGER | Пользователь, которому принадлежит заметка | FK, NOT NULL |
+| title | VARCHAR(255) | Название заметки | NOT NULL |
+| content | TEXT | Основное содержимое заметки | Допускается пустой текст |
+| pinned | BOOLEAN | Признак закрепления заметки | DEFAULT FALSE |
+| created_at | TIMESTAMP | Дата создания заметки | DEFAULT NOW() |
+| updated_at | TIMESTAMP | Дата последнего изменения | DEFAULT NOW() |
+
+Фактическая реализация таблиц лежит в отдельных SQL-файлах:
 
 - `database/tables/users.sql`
 - `database/tables/notes.sql`
+- `database/schema.sql`
 
 ## Структура проекта
 

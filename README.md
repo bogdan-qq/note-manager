@@ -3,6 +3,7 @@
 - клиентская часть: `NoteManager.html`
 - серверная часть: `server/src/*`
 - база данных: `database/schema.sql`, `database/seed.sql`, `database/note-manager.sqlite`
+- отдельные SQL-файлы таблиц: `database/tables/users.sql`, `database/tables/notes.sql`
 
 ## Запуск
 
@@ -35,13 +36,24 @@ http://localhost:3000/
 - email: `demo@notemanager.local`
 - password: `demo12345`
 
+## Таблицы базы данных
+
+Таблицы вынесены в отдельные SQL-файлы, чтобы их было видно в репозитории без поиска по общей схеме:
+
+- `database/tables/users.sql`
+- `database/tables/notes.sql`
+
 ## Структура проекта
 
 ```text
 database/
+  README.md
   note-manager.sqlite
   schema.sql
   seed.sql
+  tables/
+    notes.sql
+    users.sql
 server/
   scripts/
     initDatabase.js

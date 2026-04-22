@@ -1,0 +1,23 @@
+{
+  "name": "note-manager",
+  "version": "1.0.0",
+  "description": "Full-stack note manager with HTML frontend, Express backend, and SQLite database.",
+  "main": "server/src/server.js",
+  "scripts": {
+    "start": "node server/src/server.js",
+    "db:init": "node server/scripts/initDatabase.js"
+  },
+  "keywords": [
+    "notes",
+    "express",
+    "sqlite",
+    "html"
+  ],
+  "author": "Bogdan",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "sql.js": "^1.13.0"
+  }
+}

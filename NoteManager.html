@@ -541,15 +541,23 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "note-manager-storage-v1";
+    const TOKEN_KEY = "note-manager-demo-token";
+    const DEMO_CREDENTIALS = {
+      email: "demo@notemanager.local",
+      password: "demo12345"
+    };
 
     const state = {
       notes: [],
       search: "",
       sort: "updated-desc",
       activeId: null,
-      editorOpen: false
+      editorOpen: false,
+      token: localStorage.getItem(TOKEN_KEY),
+      errorMessage: ""
     };
+
+    let searchTimer = null;
 
     const searchInput = document.getElementById("searchInput");
     const searchButton = document.getElementById("searchButton");
@@ -567,57 +575,12 @@
     const deleteButton = document.getElementById("deleteButton");
     const pinButton = document.getElementById("pinButton");
 
-    function getNow() {
-      return new Date().toISOString();
+    function setStatus(text) {
+      statusPill.textContent = text;
     }
 
-    function createId() {
-      if (window.crypto && typeof window.crypto.randomUUID === "function") {
-        return window.crypto.randomUUID();
-      }
-      return `note-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    }
-
-    function createSeedNotes() {
-      const now = new Date();
-      return [
-        {
-          id: createId(),
-          title: "План на неделю",
-          content: "Собрать требования, сверстать интерфейс и протестировать сохранение заметок.",
-          pinned: true,
-          createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 30).toISOString(),
-          updatedAt: new Date(now.getTime() - 1000 * 60 * 35).toISOString()
-        },
-        {
-          id: createId(),
-          title: "Идеи для проекта",
-          content: "Добавить поиск, сортировку по дате, закрепление и аккуратный режим редактирования заметки.",
-          pinned: false,
-          createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 8).toISOString(),
-          updatedAt: new Date(now.getTime() - 1000 * 60 * 45).toISOString()
-        }
-      ];
-    }
-
-    function loadNotes() {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        state.notes = createSeedNotes();
-        persistNotes();
-        return;
-      }
-
-      try {
-        const parsed = JSON.parse(raw);
-        state.notes = Array.isArray(parsed) ? parsed : createSeedNotes();
-      } catch (error) {
-        state.notes = createSeedNotes();
-      }
-    }
-
-    function persistNotes() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.notes));
+    function getActiveNote() {
+      return state.notes.find((note) => note.id === state.activeId) || null;
     }
 
     function formatDate(dateValue) {
@@ -628,184 +591,6 @@
         hour: "2-digit",
         minute: "2-digit"
       }).format(new Date(dateValue));
-    }
-
-    function getFilteredNotes() {
-      const query = state.search.trim().toLowerCase();
-      const filtered = state.notes.filter((note) => {
-        if (!query) {
-          return true;
-        }
-        return `${note.title} ${note.content}`.toLowerCase().includes(query);
-      });
-
-      const sorted = filtered.sort((left, right) => {
-        if (left.pinned !== right.pinned) {
-          return Number(right.pinned) - Number(left.pinned);
-        }
-
-        if (state.sort === "updated-asc") {
-          return new Date(left.updatedAt) - new Date(right.updatedAt);
-        }
-
-        if (state.sort === "created-desc") {
-          return new Date(right.createdAt) - new Date(left.createdAt);
-        }
-
-        if (state.sort === "title-asc") {
-          return left.title.localeCompare(right.title, "ru");
-        }
-
-        return new Date(right.updatedAt) - new Date(left.updatedAt);
-      });
-
-      return sorted;
-    }
-
-    function setStatus(text) {
-      statusPill.textContent = text;
-    }
-
-    function getActiveNote() {
-      return state.notes.find((note) => note.id === state.activeId) || null;
-    }
-
-    function renderNotes() {
-      const filteredNotes = getFilteredNotes();
-      notesGrid.innerHTML = "";
-
-      notesCount.textContent = `${filteredNotes.length} ${pluralize(filteredNotes.length, ["заметка", "заметки", "заметок"])}`;
-
-      if (!filteredNotes.length) {
-        const empty = document.createElement("article");
-        empty.className = "empty-state";
-        empty.innerHTML = `
-          <div>
-            <h2>Пусто, но это ненадолго</h2>
-            <p>Создай первую заметку кнопкой с карандашом или уточни поисковый запрос, если заметки уже есть.</p>
-          </div>
-        `;
-        notesGrid.append(empty);
-        return;
-      }
-
-      filteredNotes.forEach((note) => {
-        const card = document.createElement("article");
-        card.className = `note-card${note.pinned ? " pinned" : ""}`;
-        card.dataset.id = note.id;
-        card.innerHTML = `
-          <button class="note-card__pin" type="button" aria-label="${note.pinned ? "Открепить" : "Закрепить"}">
-            ${getPinIcon()}
-          </button>
-          <h2>${escapeHtml(note.title || "Без названия")}</h2>
-          <p>${escapeHtml(trimPreview(note.content || "Пустая заметка", 160))}</p>
-          <div class="note-card__meta">
-            <span>${note.pinned ? "Закреплена" : "Обычная"}</span>
-            <span>${formatDate(note.updatedAt)}</span>
-          </div>
-        `;
-
-        card.addEventListener("click", () => openEditor(note.id));
-        card.querySelector(".note-card__pin").addEventListener("click", (event) => {
-          event.stopPropagation();
-          togglePin(note.id);
-        });
-
-        notesGrid.append(card);
-      });
-    }
-
-    function openEditor(noteId = null) {
-      state.activeId = noteId;
-      state.editorOpen = true;
-      editorBackdrop.classList.add("is-open");
-      editorBackdrop.setAttribute("aria-hidden", "false");
-
-      const note = getActiveNote();
-
-      noteTitle.value = note ? note.title : "";
-      noteContent.value = note ? note.content : "";
-      editorMeta.innerHTML = note
-        ? `Создано: ${formatDate(note.createdAt)}<br>Изменено: ${formatDate(note.updatedAt)}`
-        : "Новая заметка";
-      deleteButton.hidden = !note;
-      pinButton.textContent = note && note.pinned ? "Открепить" : "Закрепить";
-
-      requestAnimationFrame(() => noteTitle.focus());
-    }
-
-    function closeEditor() {
-      state.activeId = null;
-      state.editorOpen = false;
-      editorBackdrop.classList.remove("is-open");
-      editorBackdrop.setAttribute("aria-hidden", "true");
-    }
-
-    function saveNote() {
-      const title = noteTitle.value.trim();
-      const content = noteContent.value.trim();
-
-      if (!title && !content) {
-        setStatus("Добавь название или текст, чтобы сохранить заметку.");
-        noteTitle.focus();
-        return;
-      }
-
-      const now = getNow();
-      const existingNote = getActiveNote();
-
-      if (existingNote) {
-        existingNote.title = title || "Без названия";
-        existingNote.content = content;
-        existingNote.updatedAt = now;
-        setStatus("Заметка обновлена.");
-      } else {
-        state.notes.unshift({
-          id: createId(),
-          title: title || "Без названия",
-          content,
-          pinned: false,
-          createdAt: now,
-          updatedAt: now
-        });
-        setStatus("Заметка создана.");
-      }
-
-      persistNotes();
-      renderNotes();
-      closeEditor();
-    }
-
-    function deleteActiveNote() {
-      const note = getActiveNote();
-      if (!note) {
-        return;
-      }
-
-      state.notes = state.notes.filter((item) => item.id !== note.id);
-      persistNotes();
-      renderNotes();
-      closeEditor();
-      setStatus("Заметка удалена.");
-    }
-
-    function togglePin(noteId) {
-      const note = state.notes.find((item) => item.id === noteId);
-      if (!note) {
-        return;
-      }
-
-      note.pinned = !note.pinned;
-      note.updatedAt = getNow();
-      persistNotes();
-      renderNotes();
-
-      if (state.activeId === noteId && state.editorOpen) {
-        pinButton.textContent = note.pinned ? "Открепить" : "Закрепить";
-        editorMeta.innerHTML = `Создано: ${formatDate(note.createdAt)}<br>Изменено: ${formatDate(note.updatedAt)}`;
-      }
-
-      setStatus(note.pinned ? "Заметка закреплена." : "Заметка откреплена.");
     }
 
     function trimPreview(text, length) {
@@ -846,27 +631,279 @@
       `;
     }
 
+    async function apiRequest(path, options = {}, useAuth = true) {
+      const headers = {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      };
+
+      if (useAuth && state.token) {
+        headers.Authorization = `Bearer ${state.token}`;
+      }
+
+      const response = await fetch(path, {
+        method: options.method || "GET",
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : null;
+
+      if (!response.ok) {
+        const error = new Error(data && data.message ? data.message : "Ошибка запроса.");
+        error.status = response.status;
+        throw error;
+      }
+
+      return data;
+    }
+
+    async function ensureDemoSession() {
+      if (state.token) {
+        return;
+      }
+
+      const loginResponse = await apiRequest("/auth/login", {
+        method: "POST",
+        body: DEMO_CREDENTIALS
+      }, false);
+
+      state.token = loginResponse.token;
+      localStorage.setItem(TOKEN_KEY, state.token);
+    }
+
+    async function loadNotesFromServer() {
+      await ensureDemoSession();
+
+      const params = new URLSearchParams();
+      params.set("sort", state.sort);
+
+      if (state.search.trim()) {
+        params.set("search", state.search.trim());
+      }
+
+      try {
+        state.notes = await apiRequest(`/notes?${params.toString()}`);
+        state.errorMessage = "";
+      } catch (error) {
+        if (error.status === 401) {
+          state.token = "";
+          localStorage.removeItem(TOKEN_KEY);
+          await ensureDemoSession();
+          state.notes = await apiRequest(`/notes?${params.toString()}`);
+          state.errorMessage = "";
+          return;
+        }
+
+        throw error;
+      }
+    }
+
+    function renderEmptyState(title, description) {
+      notesGrid.innerHTML = `
+        <article class="empty-state">
+          <div>
+            <h2>${escapeHtml(title)}</h2>
+            <p>${escapeHtml(description)}</p>
+          </div>
+        </article>
+      `;
+    }
+
+    function renderNotes() {
+      notesGrid.innerHTML = "";
+      notesCount.textContent = `${state.notes.length} ${pluralize(state.notes.length, ["заметка", "заметки", "заметок"])}`;
+
+      if (state.errorMessage) {
+        renderEmptyState("Нет соединения с сервером", state.errorMessage);
+        return;
+      }
+
+      if (!state.notes.length) {
+        renderEmptyState(
+          "Пока пусто",
+          "Создай первую заметку кнопкой с карандашом или измени поисковый запрос."
+        );
+        return;
+      }
+
+      state.notes.forEach((note) => {
+        const card = document.createElement("article");
+        card.className = `note-card${note.pinned ? " pinned" : ""}`;
+        card.dataset.id = note.id;
+        card.innerHTML = `
+          <button class="note-card__pin" type="button" aria-label="${note.pinned ? "Открепить" : "Закрепить"}">
+            ${getPinIcon()}
+          </button>
+          <h2>${escapeHtml(note.title || "Без названия")}</h2>
+          <p>${escapeHtml(trimPreview(note.content || "Пустая заметка", 160))}</p>
+          <div class="note-card__meta">
+            <span>${note.pinned ? "Закреплена" : "Обычная"}</span>
+            <span>${formatDate(note.updatedAt)}</span>
+          </div>
+        `;
+
+        card.addEventListener("click", () => openEditor(note.id));
+        card.querySelector(".note-card__pin").addEventListener("click", async (event) => {
+          event.stopPropagation();
+          await togglePin(note.id);
+        });
+
+        notesGrid.append(card);
+      });
+    }
+
+    function openEditor(noteId = null) {
+      state.activeId = noteId;
+      state.editorOpen = true;
+      editorBackdrop.classList.add("is-open");
+      editorBackdrop.setAttribute("aria-hidden", "false");
+
+      const note = getActiveNote();
+
+      noteTitle.value = note ? note.title : "";
+      noteContent.value = note ? note.content : "";
+      editorMeta.innerHTML = note
+        ? `Создано: ${formatDate(note.createdAt)}<br>Изменено: ${formatDate(note.updatedAt)}`
+        : "Новая заметка";
+      deleteButton.hidden = !note;
+      pinButton.disabled = !note;
+      pinButton.textContent = note && note.pinned ? "Открепить" : "Закрепить";
+
+      requestAnimationFrame(() => noteTitle.focus());
+    }
+
+    function closeEditor() {
+      state.activeId = null;
+      state.editorOpen = false;
+      editorBackdrop.classList.remove("is-open");
+      editorBackdrop.setAttribute("aria-hidden", "true");
+    }
+
+    async function refreshNotes(statusText) {
+      try {
+        setStatus("Подключение к серверу...");
+        await loadNotesFromServer();
+        renderNotes();
+        setStatus(statusText || "Данные загружены с сервера.");
+      } catch (error) {
+        state.notes = [];
+        state.errorMessage = error.message || "Не удалось получить данные с сервера.";
+        renderNotes();
+        setStatus("Ошибка сервера");
+      }
+    }
+
+    async function saveNote() {
+      const title = noteTitle.value.trim();
+      const content = noteContent.value.trim();
+
+      if (!title && !content) {
+        setStatus("Добавь название или текст, чтобы сохранить заметку.");
+        noteTitle.focus();
+        return;
+      }
+
+      try {
+        const existingNote = getActiveNote();
+        const payload = {
+          title: title || "Без названия",
+          content
+        };
+
+        if (existingNote) {
+          await apiRequest(`/notes/${existingNote.id}`, {
+            method: "PUT",
+            body: payload
+          });
+          closeEditor();
+          await refreshNotes("Заметка обновлена.");
+          return;
+        }
+
+        await apiRequest("/notes", {
+          method: "POST",
+          body: payload
+        });
+        closeEditor();
+        await refreshNotes("Заметка создана.");
+      } catch (error) {
+        setStatus(error.message || "Не удалось сохранить заметку.");
+      }
+    }
+
+    async function deleteActiveNote() {
+      const note = getActiveNote();
+
+      if (!note) {
+        return;
+      }
+
+      try {
+        await apiRequest(`/notes/${note.id}`, {
+          method: "DELETE"
+        });
+        closeEditor();
+        await refreshNotes("Заметка удалена.");
+      } catch (error) {
+        setStatus(error.message || "Не удалось удалить заметку.");
+      }
+    }
+
+    async function togglePin(noteId) {
+      const note = state.notes.find((item) => item.id === noteId);
+
+      if (!note) {
+        return;
+      }
+
+      try {
+        await apiRequest(`/notes/${note.id}`, {
+          method: "PUT",
+          body: {
+            pinned: !note.pinned
+          }
+        });
+
+        await refreshNotes(!note.pinned ? "Заметка закреплена." : "Заметка откреплена.");
+
+        if (state.activeId === noteId && state.editorOpen) {
+          const updatedNote = getActiveNote();
+          pinButton.textContent = updatedNote && updatedNote.pinned ? "Открепить" : "Закрепить";
+          editorMeta.innerHTML = updatedNote
+            ? `Создано: ${formatDate(updatedNote.createdAt)}<br>Изменено: ${formatDate(updatedNote.updatedAt)}`
+            : "Новая заметка";
+        }
+      } catch (error) {
+        setStatus(error.message || "Не удалось изменить статус заметки.");
+      }
+    }
+
     searchInput.addEventListener("input", (event) => {
       state.search = event.target.value;
-      renderNotes();
-      setStatus(state.search ? `Поиск: "${state.search}"` : "Готово к работе");
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        refreshNotes(state.search ? `Поиск: "${state.search}"` : "Данные загружены с сервера.");
+      }, 250);
     });
 
     searchButton.addEventListener("click", () => searchInput.focus());
-    sortSelect.addEventListener("change", (event) => {
+
+    sortSelect.addEventListener("change", async (event) => {
       state.sort = event.target.value;
-      renderNotes();
-      setStatus("Порядок заметок обновлен.");
+      await refreshNotes("Порядок заметок обновлен.");
     });
 
     addButton.addEventListener("click", () => openEditor());
     saveButton.addEventListener("click", saveNote);
     cancelButton.addEventListener("click", closeEditor);
     deleteButton.addEventListener("click", deleteActiveNote);
-    pinButton.addEventListener("click", () => {
+    pinButton.addEventListener("click", async () => {
       const active = getActiveNote();
+
       if (active) {
-        togglePin(active.id);
+        await togglePin(active.id);
       }
     });
 
@@ -887,8 +924,7 @@
       }
     });
 
-    loadNotes();
-    renderNotes();
+    refreshNotes("Сервер подключен. Работает demo-пользователь.");
   </script>
 </body>
 </html>
